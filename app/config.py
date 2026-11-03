@@ -10,15 +10,19 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    DATABASE_URL: str = (
-        "postgresql+psycopg://postgres:postgres@localhost:5432/property_assistant"
-    )
+    DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/property_assistant"
     TEST_DATABASE_URL: str = (
         "postgresql+psycopg://postgres:postgres@localhost:5432/property_assistant_test"
     )
     INVENTORY_PATH: str = "/app/data/property_inventory.csv"
     ADMIN_TOKEN: str | None = None
     MAX_REJECT_RATIO: float = 0.25
+    PRICE_AROUND_PCT: float = 0.10
+    FOLLOWUP_SKIP_THRESHOLD: int = 5
+    FLOOR_BAND_LOW_MAX: int = 5
+    FLOOR_BAND_MID_MIN: int = 6
+    FLOOR_BAND_MID_MAX: int = 15
+    FLOOR_BAND_HIGH_MIN: int = 16
 
 
 @lru_cache
