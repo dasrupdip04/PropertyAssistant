@@ -27,3 +27,33 @@ We choose **`client.models.generate_content`** with `response_mime_type="applica
 ### Consequences
 - NLU extraction and response generation execute as stateless calls passing the exact conversation window from our PostgreSQL store.
 - Structured output parsing failure is caught locally and triggers one immediate retry before falling back gracefully.
+
+## ADR 2: Vanilla Frontend Architecture, Strict DOM XSS Prevention, and Deterministic Notes Isolation
+
+### Status
+Accepted
+
+### Date
+2026-11-03
+
+### Context
+Step 4 introduces an interactive customer chat interface (`/`) and an operator administration dashboard (`/admin`). The frontend must remain lightweight, highly maintainable without build chains, and robust against XSS vulnerabilities stemming from user inputs or untrusted LLM outputs. Additionally, live QA in Step 3 revealed that allowing the responder LLM to formulate assumptions or format prices led to hallucinated budgets and inconsistent currency phrasing.
+
+### Decision
+1. **Zero-Build Vanilla Web Stack**:
+   - Implement the chat and admin UIs using vanilla HTML5, CSS3 (CSS custom properties, flexbox/grid), and ES6+ JavaScript.
+   - Serve static assets directly from FastAPI via `FastAPI.mount("/static", ...)` and root route handlers.
+2. **Strict DOM-Based XSS Prevention**:
+   - Mandate that all user-provided, server-provided, and LLM-generated text be inserted into the DOM strictly via `element.textContent`, `document.createTextNode`, or DOM creation methods.
+   - Forbid `innerHTML` for dynamic string interpolation.
+3. **Deterministic Notes & Price Formatting Isolation**:
+   - Facts, assumptions (e.g. `Treated around 1.0 cr as 90.00 to 110.00 lakh`), unverifiable IDs, and city normalization notices are computed entirely in Python code and passed via `notes: list[str]`.
+   - Prices and price bands are formatted using a shared formatter (`₹90 L`, `₹1 Cr`, `₹1.2 Cr`) in both cards and quick replies.
+   - The responder LLM prompt is strictly constrained to 1-2 sentences of conversational phrasing, completely forbidden from fabricating budgets or restating notes.
+4. **Session-Scoped Admin Authentication**:
+   - Admin credentials (`X-Admin-Token`) are stored strictly in `sessionStorage`, ensuring that credentials never persist across browser restarts or leak to disk.
+
+### Consequences
+- Zero npm/node build complexity; changes are instantly reflected on page refresh.
+- Absolute resistance to stored and reflected XSS attacks.
+- High grounding fidelity: 100% of factual listing details, search assumptions, and prices come from database-backed deterministic calculations.

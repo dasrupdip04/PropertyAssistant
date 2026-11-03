@@ -85,3 +85,39 @@
 - `docker compose run --rm api pytest -v`: 55/55 tests passing (1.51s).
 - Live Gemini evaluation of 30 golden cases: 100.0% field accuracy.
 - Live 2-turn curl verification against `localhost:8000/chat`.
+
+## Step 4: Output Defect Fixes, Chat Frontend, and Admin Dashboard
+### Date: 2026-11-03
+### Components Generated
+1. **Live Output Defect Fixes**:
+   - **Grounding Hole Resolution**: Prevented `ask_followups` and `ask_city` from passing option price bands to the responder LLM (options strictly restricted to `quick_replies`). Enforced strict grounding check rejecting any unrequested budget/price figures when the customer specified no budget.
+   - **Deterministic Notes**: Code-generated `notes: list[str]` in `ChatResponsePayload` containing plain-English assumptions (e.g. `Treated around 1.0 cr as 90.00 to 110.00 lakh`), city normalization notes, unverifiable listing IDs, and `Showing available listings only`.
+   - **Tone & Response Quality**: Enforced single language matching customer message (English -> English with no unsolicited Namaste; Hinglish -> Hinglish), no greeting after turn 1, 1-2 concise sentences, no filler, and at most 1 refinement suggestion after search results.
+   - **Shared Price Formatter**: Unified `format_display_price` and `format_band_label` for consistent formatting (`₹90 L`, `₹1 Cr`, `₹1.2 Cr`) in both cards and quick-reply pills.
+   - **Friendly Price Bands**: `compute_friendly_price_bands` generates rounded, non-overlapping bands derived from candidate inventory.
+   - **Rate Limiting & 429 Handling**: Extracted RPC `retryDelay` / `retry in Xs` on HTTP 429 from Gemini API (capped at 30s) and implemented sliding window `SessionRateLimiter` (max 12 requests/minute per session).
+   - **Held-out NLU Evaluation**: 25 brand-new held-out test cases covering edge cases (negations, corrections, Hinglish, ordinals, price bands, adversarial injections) with 0% overlap against prompt few-shots. Achieved 96-100% per-field accuracy (recorded in `docs/EVALUATION_STEP4.md`).
+   - **Debug Inspection**: Added `DEBUG: bool` flag returning `client_debug` in payload with resolved filters, grounding passed flag, search SQL, and latency.
+2. **Chat Frontend (`app/web/static/index.html`, `style.css`, `chat.js`)**:
+   - Vanilla HTML, CSS, JavaScript (zero frameworks, zero build steps).
+   - Strict DOM-based XSS safety using `textContent` and `createElement` for all dynamic data.
+   - Mobile-first layout with clean slate/navy palette.
+   - Header with 'New search' button, active filter chips bar with individual removal triggers calling `POST /chat/remove-filter`, composer with character limit warning (/1000) and auto-resizing textarea, typing indicator, error toast with retry, and collapsible 'How I got this' accordion for debug data.
+   - Property cards featuring index badges, availability status badges, specs, and display prices.
+   - Session persistence via `localStorage` and seamless history restoration via `GET /chat/{session_id}`.
+3. **Operator Admin Dashboard (`app/web/static/admin.html`, `admin.js`)**:
+   - Functional operator UI served at `/admin`.
+   - Token authentication via `sessionStorage` with instant logout.
+   - Refresh triggers supporting `force` and `dry_run` modes calling `POST /admin/refresh`.
+   - Real-time summary statistics panel (`inserted`, `updated`, `unchanged`, `deactivated`, `reactivated`, `rejected`, `status`).
+   - Ingestion history table querying `GET /admin/ingestion/runs` with detailed error inspector modal querying `/admin/ingestion/runs/{run_id}/errors`.
+4. **Verification & Tests**:
+   - `tests/test_frontend.py`: Automated tests verifying root `/`, `/admin`, static assets, and `POST /chat/remove-filter`.
+   - `tests/test_chat_fixes.py`: Unit tests for grounding hole prevention, deterministic notes, session limiter, simulated 429 backoff, and debug payload.
+   - `scripts/live_qa.py`: Executed 12 real Gemini API scenarios, saved in `docs/LIVE_QA_STEP4.json`. All 12 passed.
+
+### Verification
+- `docker compose run --rm api ruff check .`: Clean, 0 errors.
+- `docker compose run --rm api ruff format --check .`: Clean, 47 files formatted.
+- `docker compose run --rm api pytest -v`: 65/65 tests passing.
+- Live QA across 12 scenarios verified against live Gemini API.
