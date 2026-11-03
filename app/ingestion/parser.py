@@ -148,9 +148,7 @@ def parse_csv_content(content_bytes: bytes) -> ParseResult:
 
     missing_headers = REQUIRED_HEADERS - set(header_indices.keys())
     if missing_headers:
-        raise MissingHeadersError(
-            f"Missing required headers: {', '.join(sorted(missing_headers))}"
-        )
+        raise MissingHeadersError(f"Missing required headers: {', '.join(sorted(missing_headers))}")
 
     properties: list[ParsedProperty] = []
     errors: list[ParseError] = []
@@ -234,8 +232,7 @@ def parse_csv_content(content_bytes: bytes) -> ParseResult:
                     row_number=file_line,
                     property_id=prop_id,
                     reason=(
-                        "configuration_bhk must be an integer between 1 and 10, "
-                        f"got '{bhk_raw}'"
+                        f"configuration_bhk must be an integer between 1 and 10, got '{bhk_raw}'"
                     ),
                     raw_row=row_dict,
                 )

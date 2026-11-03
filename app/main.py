@@ -93,12 +93,7 @@ def list_ingestion_runs(
     session: DbSession,
     limit: int = Query(10, ge=1, le=100),
 ) -> list[dict[str, Any]]:
-    runs = (
-        session.query(IngestionRun)
-        .order_by(desc(IngestionRun.id))
-        .limit(limit)
-        .all()
-    )
+    runs = session.query(IngestionRun).order_by(desc(IngestionRun.id)).limit(limit).all()
     return [
         {
             "id": r.id,

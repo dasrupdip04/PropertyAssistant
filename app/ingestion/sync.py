@@ -54,9 +54,7 @@ def sync_inventory(
     settings = get_settings()
     target_path = Path(file_path or settings.INVENTORY_PATH)
     reject_threshold = (
-        max_reject_ratio
-        if max_reject_ratio is not None
-        else settings.MAX_REJECT_RATIO
+        max_reject_ratio if max_reject_ratio is not None else settings.MAX_REJECT_RATIO
     )
 
     # Acquire Postgres advisory xact lock so two refreshes cannot overlap
@@ -243,12 +241,8 @@ def sync_inventory(
         )
 
     # Diff calculation
-    existing_props: dict[str, Property] = {
-        p.property_id: p for p in session.query(Property).all()
-    }
-    parsed_map: dict[str, ParsedProperty] = {
-        p.property_id: p for p in parse_result.properties
-    }
+    existing_props: dict[str, Property] = {p.property_id: p for p in session.query(Property).all()}
+    parsed_map: dict[str, ParsedProperty] = {p.property_id: p for p in parse_result.properties}
 
     inserted = 0
     updated = 0

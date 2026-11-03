@@ -59,9 +59,7 @@ class Property(Base):
         cascade="all, delete-orphan",
     )
 
-    __table_args__ = (
-        Index("ix_properties_city_sector", "city", "sector"),
-    )
+    __table_args__ = (Index("ix_properties_city_sector", "city", "sector"),)
 
 
 class IngestionRun(Base):

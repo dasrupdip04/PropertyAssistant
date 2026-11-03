@@ -64,8 +64,7 @@ def test_edited_price_and_property_changes(db_session: Session):
             "3,110,available,12,1650,2026-10-01,Test note\n"
         )
         row2 = (
-            'TEST-002,Green Valley,"Sector 150, Noida",'
-            "2,,available,,1200,2026-10-02,Blank price\n"
+            'TEST-002,Green Valley,"Sector 150, Noida",2,,available,,1200,2026-10-02,Blank price\n'
         )
         f.write(header + row1 + row2)
         mod_path = f.name
@@ -77,9 +76,7 @@ def test_edited_price_and_property_changes(db_session: Session):
 
         # Check property changes
         changes = (
-            db_session.query(PropertyChange)
-            .filter(PropertyChange.property_id == "TEST-001")
-            .all()
+            db_session.query(PropertyChange).filter(PropertyChange.property_id == "TEST-001").all()
         )
         field_names = [c.field for c in changes]
         assert "price_lakh" in field_names
@@ -143,9 +140,7 @@ def test_empty_file_aborts_and_leaves_data_intact(db_session: Session):
     assert "Zero valid rows" in res["error_message"]
 
     # Verify 2 properties still exist and active
-    active_props = (
-        db_session.query(Property).filter(Property.is_active.is_(True)).count()
-    )
+    active_props = db_session.query(Property).filter(Property.is_active.is_(True)).count()
     assert active_props == 2
 
 

@@ -33,7 +33,7 @@ def test_parse_location_sector_and_canonical_city():
 def test_parse_blank_price_and_floor():
     csv_bytes = (
         b"property_id,project_name,location,configuration_bhk,price_lakh,availability,floor,area_sqft,listing_updated_at\n"
-        b"P-1,Test Project,\"Sector 150, Noida\",3,,available,,1500,2026-10-01\n"
+        b'P-1,Test Project,"Sector 150, Noida",3,,available,,1500,2026-10-01\n'
     )
     result = parse_csv_content(csv_bytes)
     assert len(result.errors) == 0
@@ -66,7 +66,7 @@ def test_duplicate_property_id_rejected():
 def test_trailing_blank_rows_skipped():
     csv_bytes = (
         b"property_id,project_name,location,configuration_bhk,price_lakh,availability,floor,area_sqft,listing_updated_at\n"
-        b"P-1,Test Project,\"Sector 150, Noida\",3,90,available,5,1500,2026-10-01\n"
+        b'P-1,Test Project,"Sector 150, Noida",3,90,available,5,1500,2026-10-01\n'
         b"   ,   ,   ,   ,   ,   ,   ,   ,   \n"
         b",,,,,,,,\n"
         b"\n"
@@ -80,7 +80,7 @@ def test_trailing_blank_rows_skipped():
 def test_bom_handled():
     bom_content = (
         b"\xef\xbb\xbfproperty_id,project_name,location,configuration_bhk,price_lakh,availability,floor,area_sqft,listing_updated_at\n"
-        b"BOM-1,Project BOM,\"Sector 150, Noida\",2,80,sold,4,1200,2026-10-01\n"
+        b'BOM-1,Project BOM,"Sector 150, Noida",2,80,sold,4,1200,2026-10-01\n'
     )
     result = parse_csv_content(bom_content)
     assert len(result.properties) == 1
