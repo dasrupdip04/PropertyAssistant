@@ -101,3 +101,19 @@ def test_unsure_marks_slot_and_never_asks_again():
     assert not issues
     assert new_state.filters.city == "Noida"
     assert new_state.filters.get_slot_status("sector") == SlotStatus.UNSURE
+
+
+def test_exclude_sector_action():
+    catalog = sample_catalog()
+    state = ChatState()
+    nlu = NLUResult(
+        intent=IntentType.SEARCH,
+        filters=NLUFilters(
+            city=CityFilterValue(action=FilterAction.SET, raw_text="Noida"),
+            sector=SectorFilterValue(action=FilterAction.EXCLUDE, raw_text="150"),
+        ),
+    )
+    new_state, assumptions, issues = apply_nlu(state, nlu, catalog)
+    assert not issues
+    assert "150" in new_state.filters.excluded_sectors
+    assert new_state.filters.sector is None

@@ -6,6 +6,7 @@ from pathlib import Path
 from app.config import get_settings
 from app.db import SessionLocal
 from app.domain.catalog import get_catalog
+from app.domain.normalizers import resolve_city
 from app.llm.client import GeminiClient
 from app.llm.nlu import run_nlu
 
@@ -39,7 +40,7 @@ def main():
     for idx, case in enumerate(cases):
         msg = case["message"]
         expected = case["expected"]
-        print(f"[{idx+1}/{len(cases)}] Evaluating: '{msg}'...")
+        print(f"[{idx+1}/{len(cases)}] Evaluating: '{msg}'...", flush=True)
         try:
             nlu = run_nlu(client, msg, catalog)
         except Exception as e:
@@ -48,7 +49,8 @@ def main():
             continue
 
         # Intent
-        intent_match = nlu.intent.value == expected["intent"]
+        allowed_intents = expected.get("expected_intents") or [expected["intent"]]
+        intent_match = nlu.intent.value in allowed_intents
         if intent_match:
             correct_counts["intent"] += 1
 
@@ -57,7 +59,14 @@ def main():
         if expected["city"] is None:
             city_match = got_city is None or nlu.filters.city.action.value == "keep"
         else:
-            city_match = got_city is not None and expected["city"].lower() in got_city.lower()
+            resolved_city = resolve_city(got_city, catalog).value if got_city else None
+            city_match = (
+                (got_city is not None and expected["city"].lower() in got_city.lower())
+                or (
+                    resolved_city is not None
+                    and expected["city"].lower() == resolved_city.lower()
+                )
+            )
         if city_match:
             correct_counts["city"] += 1
 
@@ -94,11 +103,14 @@ def main():
 
         # Sector
         got_sector = nlu.filters.sector.raw_text if nlu.filters.sector else None
+        sector_action = nlu.filters.sector.action.value if nlu.filters.sector else "keep"
         if expected["sector"] is None:
-            sector_match = got_sector is None or nlu.filters.sector.action.value == "keep"
+            sector_match = sector_action in ("keep", "clear", "exclude")
         else:
             sector_match = (
-                got_sector is not None and expected["sector"].lower() in got_sector.lower()
+                sector_action == "set"
+                and got_sector is not None
+                and expected["sector"].lower() in got_sector.lower()
             )
         if sector_match:
             correct_counts["sector"] += 1
@@ -106,17 +118,29 @@ def main():
         # Reference
         got_ref = None
         if nlu.reference:
-            if nlu.reference.ordinal:
+            if nlu.reference.ordinals:
+                got_ref = nlu.reference.ordinals
+            elif nlu.reference.ordinal:
                 got_ref = str(nlu.reference.ordinal)
             elif nlu.reference.property_ids:
                 got_ref = nlu.reference.property_ids[0]
             elif nlu.intent.value == "compare":
                 got_ref = "compare"
+
         if expected["reference"] is None:
             ref_match = got_ref is None
+        elif isinstance(expected["reference"], list):
+            ref_match = (
+                got_ref == expected["reference"]
+                or (
+                    nlu.reference
+                    and set(nlu.reference.ordinals) == set(expected["reference"])
+                )
+            )
         else:
-            ref_match = got_ref == expected["reference"] or (
-                got_ref is not None and expected["reference"] in got_ref
+            ref_match = (
+                str(got_ref) == str(expected["reference"])
+                or (got_ref is not None and str(expected["reference"]) in str(got_ref))
             )
         if ref_match:
             correct_counts["reference"] += 1

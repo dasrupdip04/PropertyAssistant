@@ -441,12 +441,27 @@ def handle_turn(
             }
 
     elif nlu_res.intent == IntentType.COMPARE:
+        matched_props = []
+        if state.last_search and state.last_search.shown:
+            if nlu_res.reference.ordinals:
+                for ord_idx in nlu_res.reference.ordinals:
+                    for item in state.last_search.shown:
+                        if item.position == ord_idx:
+                            p = get_property(db, item.property_id)
+                            if p:
+                                matched_props.append(p)
+            elif nlu_res.reference.property_ids:
+                for pid in nlu_res.reference.property_ids:
+                    p = get_property(db, pid)
+                    if p:
+                        matched_props.append(p)
+            else:
+                matched_props = [
+                    get_property(db, item.property_id) for item in state.last_search.shown[:2]
+                ]
         plan_data = {
             "type": "compare",
-            "properties": [
-                get_property(db, item.property_id)
-                for item in (state.last_search.shown[:2] if state.last_search else [])
-            ],
+            "properties": [p for p in matched_props if p is not None],
         }
 
     else:  # SEARCH

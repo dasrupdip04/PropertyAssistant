@@ -39,6 +39,8 @@ def build_base_conditions(filters: SearchFilters) -> list[Any]:
         conds.append(Property.city == filters.city)
     if filters.sector:
         conds.append(Property.sector == filters.sector.upper())
+    if filters.excluded_sectors:
+        conds.append(Property.sector.notin_([s.upper() for s in filters.excluded_sectors]))
 
     # Project
     if filters.project:

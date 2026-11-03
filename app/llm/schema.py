@@ -18,6 +18,7 @@ class FilterAction(StrEnum):
     SET = "set"
     CLEAR = "clear"
     UNSURE = "unsure"
+    EXCLUDE = "exclude"
 
 
 class CityFilterValue(BaseModel):
@@ -121,6 +122,7 @@ class SuperlativeKind(StrEnum):
 class Reference(BaseModel):
     kind: ReferenceKind = ReferenceKind.NONE
     ordinal: int | None = None
+    ordinals: list[int] = Field(default_factory=list)
     property_ids: list[str] = Field(default_factory=list)
     project_text: str | None = None
     superlative: SuperlativeKind | None = None

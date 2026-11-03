@@ -101,6 +101,12 @@ def apply_nlu(
         state.filters.sector = None
         state.filters.set_slot_status("sector", SlotStatus.UNSPECIFIED)
         assumptions.append("cleared sector filter")
+    elif sector_action == FilterAction.EXCLUDE and nlu.filters.sector.raw_text:
+        raw_sec = nlu.filters.sector.raw_text
+        norm_sec = normalize_sector(raw_sec)
+        if norm_sec and norm_sec not in state.filters.excluded_sectors:
+            state.filters.excluded_sectors.append(norm_sec)
+            assumptions.append(f"excluded sector '{norm_sec}'")
     elif sector_action == FilterAction.UNSURE:
         state.filters.mark_unsure("sector")
     elif sector_action == FilterAction.SET and nlu.filters.sector.raw_text:

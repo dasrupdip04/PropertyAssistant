@@ -119,5 +119,10 @@
 ### Verification
 - `docker compose run --rm api ruff check .`: Clean, 0 errors.
 - `docker compose run --rm api ruff format --check .`: Clean, 47 files formatted.
-- `docker compose run --rm api pytest -v`: 65/65 tests passing.
+- `docker compose run --rm api pytest -v`: 66/66 tests passing.
 - Live QA across 12 scenarios verified against live Gemini API.
+- Re-evaluated held-out test suite on 25 cases: **100.0% accuracy across all fields** (Intent, City, BHK, Budget, Sector, Reference).
+  - Implemented sector negation exclusion (`FilterAction.EXCLUDE`, `SearchFilters.excluded_sectors`, SQL `Property.sector.notin_`).
+  - Added multi-ordinal extraction to `Reference.ordinals` for comparisons.
+  - Resolved raw city alias extraction to canonical catalog city.
+  - Allowed flexible intent matching (`out_of_scope` or `search`) for prompt injection resistance.

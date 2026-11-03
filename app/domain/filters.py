@@ -13,6 +13,7 @@ class SlotStatus(StrEnum):
 class SearchFilters(BaseModel):
     city: str | None = None
     sector: str | None = None
+    excluded_sectors: list[str] = Field(default_factory=list)
     project: str | None = None
     bhk_in: list[int] | None = None
     bhk_min: int | None = None
