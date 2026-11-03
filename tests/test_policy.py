@@ -111,4 +111,3 @@ def test_floor_and_area_asked_when_higher_priority_exhausted(db_session: Session
     assert isinstance(action, AskFollowups)
     assert "floor" in action.slots
     assert "area" in action.slots
-

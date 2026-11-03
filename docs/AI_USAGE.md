@@ -44,3 +44,44 @@
 - `docker compose run --rm api ruff check .`: Clean, 0 errors.
 - `docker compose run --rm api pytest -v`: 36/36 tests passing (0.73s).
 - Demo CLI verified with 3 live queries (Gurugram 3 BHK around 1 cr, Noida 3 BHK around 1 cr, and Gurugram Sector 79 relaxation).
+
+## Step 3: Session State, Gemini LLM Layer, Chat Orchestration, and `/chat` API
+### Date: 2026-11-03
+### Components Generated
+1. **Gemini Client behind `LLMClient` Protocol (`app/llm/client.py`)**:
+   - `LLMClient` protocol defining `generate_structured` and `generate_text`.
+   - `GeminiClient` implementing the official `google-genai` SDK using `client.models.generate_content`.
+   - Hard constraints respected: no temperature, top_p or top_k sent (deprecated in Gemini 3.5 Flash-Lite / 3.6 Flash); structured JSON schema passed via `config.response_schema`; thinking level configured via `types.ThinkingConfig`.
+   - Exponential backoff retry on HTTP 429, 5xx, and timeouts; single retry on schema-invalid outputs; latency and token logging; typed `LLMError` isolation preventing stack trace leaks.
+   - `FakeLLMClient` providing scripted queues, custom handlers, and deterministic fallback templates for hermetic testing.
+2. **NLU Layer & Schemas (`app/llm/schema.py`, `app/llm/nlu.py`, `app/llm/prompts/nlu.md`, `app/chat/apply.py`)**:
+   - Pydantic schema `NLUResult` capturing intent, new-search flag, results-now flag, per-slot filter actions (`set`, `keep`, `clear`, `unsure`), sort preference, reference resolution (ordinal, property ID, superlative), and asked attributes.
+   - Few-shot system prompt `app/llm/prompts/nlu.md` containing 20 curated examples covering Hinglish, typo resilience, acronyms, slot actions, and prompt injection defense.
+   - `apply_nlu`: Integrates Step 2 normalizers (`resolve_city`, `normalize_sector`, `parse_budget`, `parse_bhk`, floor/area band lookups) to update `ChatState` with deterministic assumptions and typed issues (`NLUIssue`).
+3. **Session State & Persistence (`app/chat/models.py`, `app/chat/state.py`)**:
+   - SQLAlchemy models: `SessionModel`, `ConversationTurn` (with structured debug metadata), `SearchLog`.
+   - `ChatState` and `LastSearchState` tracking cumulative pagination offsets and shown property positions across turns.
+4. **Chat Orchestration & Grounding (`app/chat/service.py`, `app/chat/grounding.py`, `app/llm/prompts/responder.md`)**:
+   - Response plan generator covering `ask_city`, `ask_followups`, `show_results`, `no_results`, `property_answer`, `compare`, `clarify_reference`, `smalltalk`, `reset`, `issue`, and `nlu_failed`.
+   - Phrasing with Responder using `app/llm/prompts/responder.md` enforcing empathy, max 3 short sentences, max 2 questions, conditional unsure hint, and explicit assumptions.
+   - Grounding verifier `verify_grounding` strictly checking all mentioned `PROP-###` IDs and key figures against values present in the response plan; automated retry on violation and fallback to deterministic template `render_fallback_template`.
+   - Helper formatters: `format_cards` (with badges: "cheapest", "largest", "best price/sqft"), `build_filter_chips`, and `format_display_price`.
+5. **FastAPI Endpoints (`app/main.py`)**:
+   - `POST /chat`: Multi-turn conversational endpoint returning reply, cards, filter chips, quick replies, and pagination flags.
+   - `POST /chat/remove-filter`: Deterministic chip dismissal that recalculates active search results.
+   - `GET /chat/{session_id}`: Full session state and message history retrieval.
+   - Friendly validation error handler returning 400 Bad Request with customer-facing messages.
+6. **Automated Testing Suite**:
+   - `tests/test_apply_nlu.py`: Unit tests for normalizer integration and filter mutation.
+   - `tests/test_chat_service.py`: 10 comprehensive flow tests covering all required customer journeys (a through l), grounding retry/fallback, and error isolation.
+   - `tests/test_chat_api.py`: FastAPI endpoints integration tests verifying session continuity and filter removal.
+7. **Smoke Test & Golden Dataset (`tests/golden_nlu.json`, `app/llm/smoke.py`)**:
+   - 30 curated golden test cases evaluating field-by-field accuracy.
+   - CLI evaluator executing against live `gemini-3.5-flash-lite` or fake client, demonstrating 3 end-to-end sample conversations.
+
+### Verification
+- `docker compose run --rm api ruff check .`: Clean, 0 errors.
+- `docker compose run --rm api ruff format --check .`: Clean, 45 files formatted.
+- `docker compose run --rm api pytest -v`: 55/55 tests passing (1.51s).
+- Live Gemini evaluation of 30 golden cases: 100.0% field accuracy.
+- Live 2-turn curl verification against `localhost:8000/chat`.
