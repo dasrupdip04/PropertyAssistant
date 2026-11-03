@@ -1,11 +1,13 @@
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import desc, text
 from sqlalchemy.orm import Session
@@ -42,6 +44,19 @@ app = FastAPI(
     description="Grounded Real-Estate Chat Assistant - Chat Engine",
     lifespan=lifespan,
 )
+
+STATIC_DIR = Path(__file__).parent / "web" / "static"
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+@app.get("/", response_class=FileResponse)
+def serve_chat_ui() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/admin", response_class=FileResponse)
+def serve_admin_ui() -> FileResponse:
+    return FileResponse(STATIC_DIR / "admin.html")
 
 
 @app.exception_handler(RequestValidationError)
@@ -219,6 +234,7 @@ def admin_refresh(
 def list_ingestion_runs(
     session: DbSession,
     limit: int = Query(10, ge=1, le=100),
+    _token: Annotated[str | None, Header(alias="X-Admin-Token")] = None,
 ) -> list[dict[str, Any]]:
     runs = session.query(IngestionRun).order_by(desc(IngestionRun.id)).limit(limit).all()
     return [
