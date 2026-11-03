@@ -180,7 +180,6 @@ def resolve_project(text: str, catalog: Catalog) -> ResolutionResult:
     return ResolutionResult(status=ResolutionStatus.UNKNOWN, value=None)
 
 
-
 def parse_budget(
     amount: float | int | Decimal | str,
     unit: str | None = None,
