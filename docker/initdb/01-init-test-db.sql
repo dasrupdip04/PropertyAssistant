@@ -1,0 +1,1 @@
+CREATE DATABASE property_assistant_test;

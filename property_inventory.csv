@@ -1,0 +1,37 @@
+property_id,project_name,location,configuration_bhk,price_lakh,availability,floor,area_sqft,listing_updated_at,notes
+PROP-001,Maple Heights,"Sector 150, Noida",3,90,available,12,1535,2026-10-02,Fictional assessment listing
+PROP-002,Maple Heights,"Sector 150, Noida",3,120,available,8,1860,2026-10-03,Fictional assessment listing
+PROP-003,Maple Heights,"Sector 150, Noida",3,110,sold,17,2185,2026-10-04,Fictional assessment listing
+PROP-004,Azure Gardens,"Sector 150, Noida",2,99,available,6,1730,2026-10-05,Fictional assessment listing
+PROP-005,Skyline Vista,"Sector 150, Noida",4,115,available,14,1535,2026-10-06,Fictional assessment listing
+PROP-006,Cedar Court,"Sector 150, Noida",3,121,available,9,2120,2026-10-07,Fictional assessment listing
+PROP-007,Suncrest Towers,"Sector 150, Noida",3,105,reserved,11,1665,2026-10-08,Fictional assessment listing
+PROP-008,Maple Heights,"Sector 150, Noida",3,95,available,,1730,2026-10-09,Fictional assessment listing
+PROP-009,Maple Heights,"Sector 150, Noida",3,,available,5,2055,2026-10-10,Fictional assessment listing
+PROP-010,Orchid Residency,"Sector 150, Noida",3,89,available,10,1860,2026-10-11,Fictional assessment listing
+PROP-011,Silver Oak,"Sector 150, Noida",3,120,available,20,1665,2026-10-12,Fictional assessment listing
+PROP-012,Azure Gardens,"Sector 150, Noida",3,100,sold,4,1990,2026-10-13,Fictional assessment listing
+PROP-013,Skyline Vista,"Sector 79, Gurugram",2,85,reserved,15,1535,2026-10-14,Fictional assessment listing
+PROP-014,Cedar Court,"Sector 65, Gurugram",3,95,sold,18,1860,2026-10-15,Fictional assessment listing
+PROP-015,Suncrest Towers,"Sector 57, Gurugram",4,108,available,21,2185,2026-10-16,Fictional assessment listing
+PROP-016,Lotus Enclave,"Sector 150, Noida",3,119,available,24,1730,2026-10-17,Fictional assessment listing
+PROP-017,Maple Heights,"Sector 137, Noida",2,125,available,2,1535,2026-10-18,Fictional assessment listing
+PROP-018,Orchid Residency,"Sector 75, Noida",4,145,available,5,2120,2026-10-19,Fictional assessment listing
+PROP-019,Silver Oak,"Sector 78, Noida",2,90,available,8,1665,2026-10-20,Fictional assessment listing
+PROP-020,Azure Gardens,"Sector 143, Noida",3,120,reserved,11,1730,2026-10-21,Fictional assessment listing
+PROP-021,Skyline Vista,"Sector 120, Noida",4,78,sold,14,2055,2026-10-22,Fictional assessment listing
+PROP-022,Cedar Court,"Sector 62, Noida",3,102,available,17,1860,2026-10-23,Fictional assessment listing
+PROP-023,Suncrest Towers,"Sector 76, Noida",2,115,available,20,1665,2026-10-24,Fictional assessment listing
+PROP-024,Lotus Enclave,"Sector 79, Noida",4,99,available,23,1990,2026-10-25,Fictional assessment listing
+PROP-025,Maple Heights,"Sector 168, Noida",2,85,available,1,1535,2026-10-01,Fictional assessment listing
+PROP-026,Orchid Residency,"Sector 1, Greater Noida West",3,95,available,4,1860,2026-10-02,Fictional assessment listing
+PROP-027,Silver Oak,"Sector 16B, Greater Noida West",4,108,reserved,7,2185,2026-10-03,Fictional assessment listing
+PROP-028,Azure Gardens,"Sector 79, Gurugram",3,119,sold,10,1730,2026-10-04,Fictional assessment listing
+PROP-029,Skyline Vista,"Sector 65, Gurugram",2,125,available,13,1535,2026-10-05,Fictional assessment listing
+PROP-030,Cedar Court,"Sector 57, Gurugram",4,145,available,16,2120,2026-10-06,Fictional assessment listing
+PROP-031,Suncrest Towers,"Sector 150, Noida",2,90,available,19,1665,2026-10-07,Fictional assessment listing
+PROP-032,Lotus Enclave,"Sector 137, Noida",3,120,available,22,1730,2026-10-08,Fictional assessment listing
+PROP-033,Maple Heights,"Sector 75, Noida",4,78,available,25,2055,2026-10-09,Fictional assessment listing
+PROP-034,Orchid Residency,"Sector 78, Noida",3,102,reserved,3,1860,2026-10-10,Fictional assessment listing
+PROP-035,Silver Oak,"Sector 143, Noida",2,115,sold,6,1665,2026-10-11,Fictional assessment listing
+PROP-036,Azure Gardens,"Sector 120, Noida",4,99,available,9,1990,2026-10-12,Fictional assessment listing
