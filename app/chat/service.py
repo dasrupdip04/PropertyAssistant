@@ -425,7 +425,10 @@ def handle_turn(
                     elif attr == AskedAttribute.PROJECT:
                         attrs["project_name"] = p["project_name"]
                     elif attr == AskedAttribute.OTHER:
-                        attrs["metro distance / amenities"] = "not in our data"
+                        if "metro" in message.lower():
+                            attrs["metro distance"] = "not in our data"
+                        else:
+                            attrs["amenities / external details"] = "not in our data"
 
                 plan_data = {
                     "type": "property_answer",

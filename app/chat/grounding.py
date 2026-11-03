@@ -93,6 +93,26 @@ def verify_grounding(reply: str, plan_data: dict[str, Any]) -> tuple[bool, str |
                     f"Grounding violation: unrequested price '{price_terms[0]}'.",
                 )
 
+    if plan_type == "property_answer":
+        attrs = plan_data.get("attributes", {})
+        reply_lower = reply.lower()
+        for k, v in attrs.items():
+            if v == "not in our data":
+                phrases = (
+                    "not in our data",
+                    "not in the data",
+                    "no data",
+                    "don't have data",
+                    "don't track",
+                    "do not have",
+                    "not available in our data",
+                )
+                if not any(p in reply_lower for p in phrases):
+                    return (
+                        False,
+                        f"Grounding violation: '{k}' is not in our data.",
+                    )
+
     # 1. Check property IDs
     mentioned_ids = re.findall(r"PROP-\d+", reply)
     allowed_ids = extract_allowed_property_ids(plan_data)
@@ -195,8 +215,12 @@ def render_fallback_template(plan_data: dict[str, Any]) -> str:
 
         details = []
         for k, v in attrs.items():
-            val_str = "not listed" if v is None else str(v)
-            details.append(f"{k}: {val_str}")
+            if v == "not in our data":
+                details.append(f"{k} is not in our data")
+            elif v is None:
+                details.append(f"{k} is not listed")
+            else:
+                details.append(f"{k}: {v}")
         details_str = ", ".join(details) if details else f"status is {status}"
 
         warning = ""

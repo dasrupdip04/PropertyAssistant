@@ -126,3 +126,25 @@
   - Added multi-ordinal extraction to `Reference.ordinals` for comparisons.
   - Resolved raw city alias extraction to canonical catalog city.
   - Allowed flexible intent matching (`out_of_scope` or `search`) for prompt injection resistance.
+
+## Step 5: Final Documentation, Verification, and Polish
+### Date: 2026-11-03
+### Components Generated
+1. **Direct Attribute Question Answering Fix**:
+   - Fixed property question handling where inquiries regarding unrecorded attributes (e.g. `"is it near the metro?"`) previously led the responder to append generic search refinement questions (`"Would you like to narrow down by sector or budget?"`).
+   - Specific attributes like `"metro distance"` are explicitly recorded as `"not in our data"` in `plan_data["attributes"]`.
+   - Updated `prompts/responder.md` and `app/chat/grounding.py` so the assistant directly states that metro distance is not in our data without asking unrelated search refinement questions.
+2. **Comprehensive Documentation Suite**:
+   - `README.md`: Complete guide featuring Mermaid architecture diagram and request sequence, setup from scratch, API reference with curl examples, PostgreSQL data model, ingestion semantics (locks, SHA-256, upsert, soft delete, abort thresholds), normalisation rules, conversation design, grounding strategy, testing strategy with test counts and honest un-tested limits, evaluation results for both golden datasets, requirement-to-implementation traceability table, known limitations, future roadmap, and AI usage verification methodology.
+   - `docs/ARCHITECTURE.md`: Technical deep-dive with Mermaid sequence diagram for a full chat turn and flowchart for the ingestion lifecycle.
+   - `docs/DECISIONS.md`: Extended Architecture Decision Records (ADRs 1–6) documenting SDK selection, zero-build frontend security, advisory lock ingestion semantics, deterministic dialogue policies, negation modeling, and dual grounding verification.
+   - `docs/DEMO_SCRIPT.md`: Comprehensive 10-minute demo path covering all 12 live customer scenarios, live CSV edits with instant admin refresh, and key talking points.
+3. **Makefile Targets**:
+   - Added `demo` (`docker compose up -d` + sync refresh), `test`, `eval`, and `lint`.
+
+### Verification
+- `docker compose run --rm api ruff check .`: Clean, 0 errors.
+- `docker compose run --rm api ruff format --check .`: Clean, 47 files clean.
+- `docker compose run --rm api pytest -v`: 66/66 tests passing.
+- Held-out evaluation on 25 cases: 100.0% accuracy across all fields.
+- Verified `make lint`, `make test`, and live API execution in Docker.
