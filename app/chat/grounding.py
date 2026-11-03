@@ -37,6 +37,17 @@ def extract_allowed_numbers(plan_data: dict[str, Any]) -> set[float]:
         except (ValueError, TypeError):
             pass
 
+    plan_type = plan_data.get("type", "")
+    if plan_type in ("ask_followups", "ask_city"):
+        applied = plan_data.get("applied_filters", {})
+        for v in applied.values():
+            if isinstance(v, list):
+                for item in v:
+                    add_val(item)
+            else:
+                add_val(v)
+        return allowed
+
     def walk(obj: Any) -> None:
         if isinstance(obj, dict):
             for k, v in obj.items():
@@ -58,6 +69,30 @@ def extract_allowed_numbers(plan_data: dict[str, Any]) -> set[float]:
 
 def verify_grounding(reply: str, plan_data: dict[str, Any]) -> tuple[bool, str | None]:
     """Check that every property ID and key figure in reply exists in the plan."""
+    plan_type = plan_data.get("type", "")
+
+    # Reject unrequested budget mentions in ask plans
+    if plan_type in ("ask_followups", "ask_city"):
+        applied = plan_data.get("applied_filters", {})
+        has_budget = bool(applied.get("price_min_lakh") or applied.get("price_max_lakh"))
+        if not has_budget:
+            reply_lower = reply.lower()
+            if "assuming" in reply_lower and any(
+                w in reply_lower for w in ("budget", "lakh", "cr", "crore")
+            ):
+                return (
+                    False,
+                    "Grounding violation: responder assumed budget without customer input.",
+                )
+            price_terms = re.findall(
+                r"\b(\d+(?:\.\d+)?)\s*(?:lakh|lac|crore|cr|l\b)", reply, re.IGNORECASE
+            )
+            if price_terms:
+                return (
+                    False,
+                    f"Grounding violation: unrequested price '{price_terms[0]}'.",
+                )
+
     # 1. Check property IDs
     mentioned_ids = re.findall(r"PROP-\d+", reply)
     allowed_ids = extract_allowed_property_ids(plan_data)
@@ -67,22 +102,18 @@ def verify_grounding(reply: str, plan_data: dict[str, Any]) -> tuple[bool, str |
             return False, f"Mentioned property ID '{pid}' is not in the plan."
 
     # 2. Check for hallucinatory price/floor/area numbers if property IDs are mentioned
-    # We allow small words/counts like 1, 2, 3, positions, or numbers present in allowed figures
     allowed_nums = extract_allowed_numbers(plan_data)
-    # Common allowed conversational numbers: 1 to 10 (rank, counts, sentences)
     benign_nums = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0}
     allowed_nums.update(benign_nums)
 
-    # Check standalone numbers > 10 in reply (e.g. ungrounded prices or areas like 999, 5000)
+    # Check standalone numbers > 10 in reply
     tokens = re.findall(r"\b(\d+(?:\.\d+)?)\b", reply)
     for tok in tokens:
         try:
             val = float(tok)
             if val > 10.0 and val not in allowed_nums:
-                # Check if it matches an allowed number within small rounding or comma formatting
                 close = any(abs(val - a) < 0.05 for a in allowed_nums)
                 if not close:
-                    # Also check if it's part of a property ID already validated
                     if f"PROP-{int(val):03d}" in allowed_ids or f"PROP-{tok}" in allowed_ids:
                         continue
                     return False, f"Figure '{tok}' in reply does not match any value in the plan."

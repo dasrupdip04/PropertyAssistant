@@ -9,7 +9,11 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.domain.catalog import get_catalog
 from app.domain.filters import SearchFilters, SlotStatus
-from app.domain.normalizers import compute_area_bands, get_floor_band
+from app.domain.normalizers import (
+    compute_area_bands,
+    format_band_label,
+    get_floor_band,
+)
 from app.domain.search import build_base_conditions, build_range_conditions
 from app.models import Property
 
@@ -44,6 +48,47 @@ class DialogueState(BaseModel):
     followups_asked: int = 0
     wants_results_now: bool = False
     unsure_hint_given: bool = False
+
+
+def compute_friendly_price_bands(prices: list[Any]) -> list[dict[str, Any]]:
+    if not prices:
+        return []
+    p_floats = sorted(float(p) for p in prices)
+    min_p, max_p = p_floats[0], p_floats[-1]
+
+    if len(set(p_floats)) <= 2 or (max_p - min_p) < 15:
+        mid = round((min_p + max_p) / 10.0) * 5.0
+        return [
+            {"label": format_band_label(None, mid), "max_lakh": mid},
+            {"label": format_band_label(mid, None), "min_lakh": mid},
+        ]
+
+    q1_raw = p_floats[len(p_floats) // 4]
+    q2_raw = p_floats[len(p_floats) // 2]
+    q3_raw = p_floats[(3 * len(p_floats)) // 4]
+
+    def round_friendly(val: float) -> float:
+        if val >= 100.0:
+            return round(val / 10.0) * 10.0
+        return round(val / 5.0) * 5.0
+
+    c1 = round_friendly(q1_raw)
+    c2 = round_friendly(q2_raw)
+    c3 = round_friendly(q3_raw)
+
+    if c1 < min_p:
+        c1 = min_p
+    if c2 <= c1:
+        c2 = c1 + (10.0 if c1 >= 100.0 else 5.0)
+    if c3 <= c2:
+        c3 = c2 + (10.0 if c2 >= 100.0 else 5.0)
+
+    return [
+        {"label": format_band_label(None, c1), "max_lakh": c1},
+        {"label": format_band_label(c1, c2), "min_lakh": c1, "max_lakh": c2},
+        {"label": format_band_label(c2, c3), "min_lakh": c2, "max_lakh": c3},
+        {"label": format_band_label(c3, None), "min_lakh": c3},
+    ]
 
 
 def decide_next_action(state: DialogueState, session: Session) -> Action:
@@ -127,21 +172,7 @@ def decide_next_action(state: DialogueState, session: Session) -> Action:
         if slot == "city":
             options["city"] = distinct_cities
         elif slot == "budget":
-            if len(prices) >= 4:
-                q1 = prices[len(prices) // 4]
-                q2 = prices[len(prices) // 2]
-                q3 = prices[(3 * len(prices)) // 4]
-                options["budget"] = [
-                    {"label": f"Under {q1} Lakh", "max_lakh": float(q1)},
-                    {"label": f"{q1} - {q2} Lakh", "min_lakh": float(q1), "max_lakh": float(q2)},
-                    {"label": f"{q2} - {q3} Lakh", "min_lakh": float(q2), "max_lakh": float(q3)},
-                    {"label": f"Above {q3} Lakh", "min_lakh": float(q3)},
-                ]
-            else:
-                options["budget"] = [
-                    {"label": f"Around {p} Lakh", "amount_lakh": float(p)}
-                    for p in sorted(set(prices))
-                ]
+            options["budget"] = compute_friendly_price_bands(prices)
         elif slot == "bhk":
             options["bhk"] = distinct_bhks
         elif slot == "sector":

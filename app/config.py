@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     NLU_THINKING_LEVEL: str = "minimal"
     RESPONDER_THINKING_LEVEL: str = "minimal"
     MAX_MESSAGE_CHARS: int = 1000
+    DEBUG: bool = False
 
 
 @lru_cache

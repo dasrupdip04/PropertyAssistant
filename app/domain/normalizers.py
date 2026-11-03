@@ -450,3 +450,29 @@ def compute_area_bands(areas: list[int]) -> list[dict[str, Any]]:
         {"min": q2 + 1, "max": q3, "label": f"{q2 + 1}-{q3} sqft"},
         {"min": q3 + 1, "max": max_a, "label": f"{q3 + 1}-{max_a} sqft"},
     ]
+
+
+def format_display_price(price_lakh: float | Decimal | None) -> str:
+    if price_lakh is None:
+        return "Price not listed"
+    p = float(price_lakh)
+    if p >= 100.0:
+        cr = p / 100.0
+        val = f"{cr:.2f}".rstrip("0").rstrip(".")
+        return f"₹{val} Cr"
+    val = f"{p:.2f}".rstrip("0").rstrip(".")
+    return f"₹{val} L"
+
+
+def format_band_label(low: float | None, high: float | None) -> str:
+    if low is None and high is not None:
+        return f"Under {format_display_price(high)}"
+    if high is None and low is not None:
+        return f"Above {format_display_price(low)}"
+    if low is not None and high is not None:
+        if low >= 100.0 and high >= 100.0:
+            cr_low = f"{low / 100.0:.2f}".rstrip("0").rstrip(".")
+            cr_high = f"{high / 100.0:.2f}".rstrip("0").rstrip(".")
+            return f"₹{cr_low} – {cr_high} Cr"
+        return f"{format_display_price(low)} – {format_display_price(high)}"
+    return "Any Budget"

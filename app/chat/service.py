@@ -13,6 +13,7 @@ from app.chat.apply import apply_nlu
 from app.chat.grounding import render_fallback_template, verify_grounding
 from app.chat.models import ConversationTurn, SearchLog, SessionModel
 from app.chat.state import ChatState, LastSearchState, ShownItem
+from app.config import get_settings
 from app.domain.catalog import get_catalog
 from app.domain.filters import SlotStatus
 from app.domain.policy import (
@@ -23,7 +24,7 @@ from app.domain.policy import (
 )
 from app.domain.relax import explain_no_results
 from app.domain.search import get_property, search_properties
-from app.llm.client import LLMClient
+from app.llm.client import LLMClient, session_limiter
 from app.llm.nlu import run_nlu
 from app.llm.schema import AskedAttribute, IntentType, NLUResult, ReferenceKind, SortType
 
@@ -38,25 +39,31 @@ def json_serializable(obj: Any) -> Any:
     return str(obj)
 
 
-RESPONDER_PROMPT = """You are PropertyAssistant, a warm and trustworthy Indian real-estate
+RESPONDER_PROMPT = """You are PropertyAssistant, a warm, trustworthy, and expert real-estate
 consultant. You phrase a response to the customer based STRICTLY on the ResponsePlan.
 
 ### Absolute Hard Constraints
-1. Length: At most 3 short sentences.
-2. Empathy: Include one sentence that warmly reflects the customer's words or situation.
-3. Questions: Ask at most 2 questions (only when asking follow-ups or clarifying a reference).
-4. Unsure Hint: Mention that 'not sure' is fine ONLY when include_unsure_hint is true in plan.
-5. Assumptions: Explicitly state any assumptions made in plan (e.g. "90 to 110 lakh").
-6. Grounding:
-   - Property specs are rendered on UI cards, so mention only property IDs and at most 1 fact.
+1. Length: 1 or 2 warm, concise sentences only.
+2. Language: Reply in the customer's language. If English, reply in natural English with NO
+   Hindi or 'Namaste'. If Hinglish, reply in warm Hinglish.
+3. No Greeting on Follow-ups: Greet ONLY on the first turn. NEVER use greetings ('Hello',
+   'Hi', 'Namaste') on turn 2 onwards.
+4. No Filler: Avoid filler phrases like 'exciting step', 'thrilled', or 'great choice'.
+5. Do Not Repeat UI Elements: Listing cards and notes are rendered separately by UI. Do NOT
+   invite customer to look at cards, do NOT re-list cards or specs, and do NOT repeat notes.
+6. Price Formatting: Refer to prices exactly as formatted on cards (e.g. ₹95 L, ₹1.2 Cr).
+7. Never Assume: Never assume, invent, or guess a budget, sector, or BHK when asking follow-up
+   questions. Only ask what their preference is.
+8. Single Refinement: After results are shown, suggest at most ONE next refinement (e.g.
+   narrowing by sector, or viewing cheaper options).
+9. Grounding:
    - Any property ID (PROP-###) mentioned MUST exist in the plan.
-   - Any price, floor, area, or BHK mentioned MUST exist in the plan or applied filters.
-   - For missing or NULL values, say "not listed".
-   - For attributes not in our database (e.g. metro distance, amenities), say "not in our data".
-   - Direct lookup of sold or reserved properties: answer truthfully with their status.
-     NEVER recommend or describe them as available.
+   - Any price, floor, area, or BHK mentioned MUST exist in the plan.
+   - For missing values, say 'not listed'. For absent attributes, say 'not in our data'.
+   - Direct lookup of sold or reserved: answer truthfully with their status ('sold'/'reserved').
+     NEVER recommend them as available.
    - NEVER invent facts, amenities, investment advice, or unlisted properties.
-7. Tone: Match the customer's language and tone (Hinglish is welcome if customer spoke Hinglish).
+10. Unsure Hint: Mention 'not sure' is fine ONLY when include_unsure_hint is true in plan.
 """
 
 
@@ -90,6 +97,8 @@ class ChatResponsePayload(BaseModel):
     filter_chips: list[FilterChip] = Field(default_factory=list)
     quick_replies: list[str] = Field(default_factory=list)
     has_more: bool = False
+    notes: list[str] = Field(default_factory=list)
+    debug: dict[str, Any] | None = None
 
 
 def format_display_price(price_lakh: float | None) -> str:
@@ -224,6 +233,20 @@ def handle_turn(
     else:
         state = ChatState.model_validate(session_rec.state)
 
+    # Rate Limiter check (per session, max 12 requests per minute)
+    if session_id and not session_limiter.is_allowed(session_id):
+        reply = "You are sending messages too quickly. Please wait a moment before trying again."
+        chips = build_filter_chips(state.filters)
+        return ChatResponsePayload(
+            session_id=str(sess_uuid),
+            reply=reply,
+            cards=[],
+            filter_chips=chips,
+            quick_replies=["Wait a moment"],
+            has_more=False,
+            notes=[],
+        )
+
     history_records = (
         db.query(ConversationTurn)
         .filter(ConversationTurn.session_id == sess_uuid)
@@ -231,6 +254,7 @@ def handle_turn(
         .all()
     )
     history_turns = [{"role": t.role, "content": t.content} for t in history_records]
+    is_first_turn = len(history_turns) == 0
 
     catalog = get_catalog(db)
     shown_count = len(state.last_search.shown) if state.last_search else 0
@@ -272,6 +296,7 @@ def handle_turn(
     plan_data: dict[str, Any] = {}
     cards: list[PropertyCard] = []
     quick_replies: list[str] = []
+    assumptions: list[str] = []
     search_log_entry: dict[str, Any] | None = None
 
     if nlu_res.intent == IntentType.RESET:
@@ -486,7 +511,8 @@ def handle_turn(
                     state.pending_slots = ["city"]
                     plan_data = {
                         "type": "ask_city",
-                        "options": action.options,
+                        "applied_filters": state.filters.model_dump(mode="json", exclude_none=True),
+                        "is_first_turn": is_first_turn,
                     }
                     quick_replies = list(action.options)
                 elif isinstance(action, AskFollowups):
@@ -496,13 +522,14 @@ def handle_turn(
                     plan_data = {
                         "type": "ask_followups",
                         "slots": action.slots,
-                        "options": action.options,
                         "include_unsure_hint": action.include_unsure_hint,
+                        "applied_filters": state.filters.model_dump(mode="json", exclude_none=True),
+                        "is_first_turn": is_first_turn,
                     }
-                    # Generate quick replies
+                    # Generate quick replies: option bands ONLY go into quick_replies!
                     for opt_list in action.options.values():
                         if isinstance(opt_list, list):
-                            for item in opt_list[:3]:
+                            for item in opt_list[:4]:
                                 if isinstance(item, dict) and "label" in item:
                                     quick_replies.append(item["label"])
                                 elif isinstance(item, dict) and "sector" in item:
@@ -604,7 +631,38 @@ def handle_turn(
 
     elapsed = time.perf_counter() - start_time
 
-    # 6. Build response payload and persist
+    # 6. Build quick replies, notes, debug payload and persist
+    if plan_data.get("type") == "show_results":
+        quick_replies = ["Show cheaper", "Change budget", "New search"]
+        if plan_data.get("has_more"):
+            quick_replies.insert(0, "Show more")
+    elif plan_data.get("type") == "no_results":
+        quick_replies = ["Change budget", "Change location", "New search"]
+
+    notes: list[str] = []
+    if cards:
+        notes.append("Showing available listings only")
+    for a in assumptions:
+        clean = a.strip()
+        if clean:
+            cap = clean[0].upper() + clean[1:]
+            if cap not in notes:
+                notes.append(cap)
+    for uid in plan_data.get("unverifiable_ids", []):
+        unv_note = f"{uid} also fits but its price is not listed"
+        if unv_note not in notes:
+            notes.append(unv_note)
+
+    client_debug = {
+        "intent": nlu_res.intent.value if hasattr(nlu_res, "intent") else None,
+        "normalised_filters": state.filters.model_dump(mode="json", exclude_none=True),
+        "assumptions": assumptions,
+        "plan_type": plan_data.get("type"),
+        "grounding_path": grounding_path,
+        "latency_ms": round(elapsed * 1000),
+        "result_ids": [c.property_id for c in cards],
+    }
+
     debug_info = {
         "nlu_result": nlu_res.model_dump(mode="json"),
         "plan_type": plan_data.get("type"),
@@ -637,6 +695,8 @@ def handle_turn(
         filter_chips=chips,
         quick_replies=quick_replies,
         has_more=has_more,
+        notes=notes,
+        client_debug=client_debug,
     )
 
 
@@ -652,6 +712,8 @@ def _persist_and_return(
     filter_chips: list[FilterChip] | None = None,
     quick_replies: list[str] | None = None,
     has_more: bool = False,
+    notes: list[str] | None = None,
+    client_debug: dict[str, Any] | None = None,
 ) -> ChatResponsePayload:
     # Save turns
     turn_user = ConversationTurn(
@@ -671,6 +733,9 @@ def _persist_and_return(
     session_rec.state = state.model_dump(mode="json")
     db.commit()
 
+    settings = get_settings()
+    debug_payload = client_debug if settings.DEBUG else None
+
     return ChatResponsePayload(
         session_id=str(sess_uuid),
         reply=reply,
@@ -678,6 +743,8 @@ def _persist_and_return(
         filter_chips=filter_chips or [],
         quick_replies=quick_replies or [],
         has_more=has_more,
+        notes=notes or [],
+        debug=debug_payload,
     )
 
 
@@ -769,6 +836,24 @@ def remove_filter(
     chips = build_filter_chips(state.filters)
     has_more = plan_data.get("has_more", False)
 
+    quick_replies = ["Show cheaper", "Change budget", "New search"]
+    if has_more:
+        quick_replies.insert(0, "Show more")
+
+    notes = []
+    if cards:
+        notes.append("Showing available listings only")
+    notes.append(f"Removed {slot} filter")
+    for uid in search_res.unverifiable_ids:
+        notes.append(f"{uid} also fits but its price is not listed")
+
+    client_debug = {
+        "action": "remove_filter",
+        "slot": slot,
+        "normalised_filters": state.filters.model_dump(mode="json", exclude_none=True),
+        "result_ids": [c.property_id for c in cards],
+    }
+
     return _persist_and_return(
         db=db,
         session_rec=session_rec,
@@ -779,5 +864,8 @@ def remove_filter(
         debug={"action": "remove_filter", "slot": slot},
         cards=cards,
         filter_chips=chips,
+        quick_replies=quick_replies,
         has_more=has_more,
+        notes=notes,
+        client_debug=client_debug,
     )

@@ -1,6 +1,7 @@
 import concurrent.futures
 import json
 import logging
+import re
 import time
 from collections.abc import Callable
 from typing import Any, Protocol, TypeVar
@@ -91,8 +92,9 @@ class GeminiClient:
             except Exception as e:
                 last_exception = e
                 err_msg = str(e).lower()
+                is_429 = "429" in err_msg or "resource_exhausted" in err_msg
                 is_retryable = (
-                    "429" in err_msg
+                    is_429
                     or "rate limit" in err_msg
                     or "503" in err_msg
                     or "500" in err_msg
@@ -100,7 +102,25 @@ class GeminiClient:
                     or "unavailable" in err_msg
                 )
                 if is_retryable and attempt < self._max_retries:
-                    time.sleep(delay)
+                    wait_time = delay
+                    if is_429:
+                        m_sec = re.search(r"retryDelay':\s*'(\d+(?:\.\d+)?)s'", str(e))
+                        if not m_sec:
+                            m_sec = re.search(r"retry in\s+([\d\.]+)s", str(e), re.IGNORECASE)
+                        if m_sec:
+                            try:
+                                wait_time = min(30.0, max(1.0, float(m_sec.group(1))))
+                            except ValueError:
+                                wait_time = min(30.0, delay)
+                        else:
+                            wait_time = min(30.0, delay)
+                    logger.warning(
+                        "LLM call attempt %d hit retryable error (%s), waiting %.1fs...",
+                        attempt + 1,
+                        type(e).__name__,
+                        wait_time,
+                    )
+                    time.sleep(wait_time)
                     delay *= 2.0
                 else:
                     raise LLMError(f"LLM call failed: {e}", cause=e) from e
@@ -216,6 +236,37 @@ class GeminiClient:
         response = self._call_with_retries(_call)
         text = getattr(response, "text", "")
         return text or ""
+
+
+class SessionRateLimiter:
+    """In-process sliding-window per-session rate limiter (max 12 req/min)."""
+
+    def __init__(self, max_requests_per_minute: int = 12) -> None:
+        self.max_requests = max_requests_per_minute
+        self._history: dict[str, list[float]] = {}
+
+    def is_allowed(self, session_id: str) -> bool:
+        if not session_id:
+            return True
+        now = time.time()
+        window_start = now - 60.0
+        timestamps = self._history.get(session_id, [])
+        valid = [t for t in timestamps if t >= window_start]
+        if len(valid) >= self.max_requests:
+            self._history[session_id] = valid
+            return False
+        valid.append(now)
+        self._history[session_id] = valid
+        return True
+
+    def reset(self, session_id: str | None = None) -> None:
+        if session_id:
+            self._history.pop(session_id, None)
+        else:
+            self._history.clear()
+
+
+session_limiter = SessionRateLimiter(max_requests_per_minute=12)
 
 
 class FakeLLMClient:
