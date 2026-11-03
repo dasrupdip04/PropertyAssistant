@@ -24,6 +24,17 @@ class Settings(BaseSettings):
     FLOOR_BAND_MID_MAX: int = 15
     FLOOR_BAND_HIGH_MIN: int = 16
 
+    # LLM Settings
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
+    GEMINI_NLU_MODEL: str | None = None
+    GEMINI_RESPONDER_MODEL: str | None = None
+    LLM_TIMEOUT_SECONDS: int = 20
+    LLM_MAX_RETRIES: int = 2
+    NLU_THINKING_LEVEL: str = "minimal"
+    RESPONDER_THINKING_LEVEL: str = "minimal"
+    MAX_MESSAGE_CHARS: int = 1000
+
 
 @lru_cache
 def get_settings() -> Settings:

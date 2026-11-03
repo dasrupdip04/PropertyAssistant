@@ -38,6 +38,15 @@ services:
       INVENTORY_PATH: ${INVENTORY_PATH:-/app/data/property_inventory.csv}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-secret-admin-token}
       MAX_REJECT_RATIO: ${MAX_REJECT_RATIO:-0.25}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      GEMINI_NLU_MODEL: ${GEMINI_NLU_MODEL:-}
+      GEMINI_RESPONDER_MODEL: ${GEMINI_RESPONDER_MODEL:-}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-20}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-2}
+      NLU_THINKING_LEVEL: ${NLU_THINKING_LEVEL:-minimal}
+      RESPONDER_THINKING_LEVEL: ${RESPONDER_THINKING_LEVEL:-minimal}
+      MAX_MESSAGE_CHARS: ${MAX_MESSAGE_CHARS:-1000}
     depends_on:
       db:
         condition: service_healthy
