@@ -73,3 +73,42 @@ def test_noida_3bhk_followup_flow(db_session: Session):
     )
     action3 = decide_next_action(state3, db_session)
     assert isinstance(action3, RunSearch)
+
+
+def test_wants_results_now_returns_run_search(db_session: Session):
+    state = DialogueState(
+        filters=SearchFilters(city="Noida"),
+        wants_results_now=True,
+    )
+    action = decide_next_action(state, db_session)
+    assert isinstance(action, RunSearch)
+
+
+def test_slot_marked_unsure_is_not_asked_again(db_session: Session):
+    # Candidate set has many distinct budgets and sectors
+    state = DialogueState(filters=SearchFilters(city="Noida", bhk_in=[3]))
+    state.filters.mark_unsure("budget")
+    state.filters.mark_unsure("sector")
+
+    # Both budget and sector are unsure, so neither should be asked
+    action = decide_next_action(state, db_session)
+    # Since candidate count > 5, policy drops down to floor and area
+    if isinstance(action, AskFollowups):
+        assert "budget" not in action.slots
+        assert "sector" not in action.slots
+    else:
+        assert isinstance(action, RunSearch)
+
+
+def test_floor_and_area_asked_when_higher_priority_exhausted(db_session: Session):
+    # Specify city, sector, and bhk; mark budget unsure.
+    # Higher-priority askable slots count is 0.
+    # Candidate count for Noida Sector 150 3 BHK is 8 (> threshold 5).
+    state = DialogueState(filters=SearchFilters(city="Noida", sector="150", bhk_in=[3]))
+    state.filters.mark_unsure("budget")
+
+    action = decide_next_action(state, db_session)
+    assert isinstance(action, AskFollowups)
+    assert "floor" in action.slots
+    assert "area" in action.slots
+
